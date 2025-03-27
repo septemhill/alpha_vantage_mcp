@@ -63,8 +63,22 @@ const server = new Server({
                     },
                     required: ["ticker"]
                 }
-            }
+            },
         },
+        get_etf_holdings: {
+            name: "get_etf_holdings",
+            description: "Get the holdings data for a specific ETF",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    ticker: {
+                        type: "string",
+                        description: "The ticker symbol of the ETF (e.g. SPY)"
+                    }
+                },
+                required: ["ticker"]
+            }
+        }
     }
 });
 
@@ -87,6 +101,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             inputSchema: zodToJsonSchema(
                 z.object({
                     ticker: z.string().describe("The ticker symbol to get the dividend data for (e.g. AAPL)"),
+                })
+            ),
+        },
+        {
+            name: "get_etf_holdings",
+            description: "Get the holdings data for a specific ETF",
+            inputSchema: zodToJsonSchema(
+                z.object({
+                    ticker: z.string().describe("The ticker symbol of the ETF (e.g. SPY)"),
                 })
             ),
         },
@@ -226,6 +249,58 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
                     {
                         type: "text",
                         text: `Failed to get the dividend data for ${ticker}. Error: ${error.message}`,
+                    },
+                ],
+                isError: true,
+            };
+        }
+    } else if (req.params.name === "get_etf_holdings") {
+        const { ticker } = req.params.arguments as { ticker: string };
+
+        try {
+            let response: any;
+            try {
+                response = await axios.get(
+                    `https://www.alphavantage.co/query?function=ETF_PROFILE&symbol=${ticker}&apikey=${apiKey}`
+                );
+            } catch (e: any) {
+                logger.error(e);
+                throw new Error(e);
+            }
+
+            const holdingsData = response.data["holdings"];
+
+            if (!holdingsData) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `No holdings data found for ${ticker}.`,
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+
+            const holdings = holdingsData.map(item => {
+                return `Holding: ${item.description} (${item.symbol}), Weight: ${item.weight}`;
+            }).join("\n");
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Holdings for ${ticker}:\n${holdings}`,
+                    },
+                ],
+            };
+        } catch (error: any) {
+            logger.error(error);
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get the holdings data for ${ticker}. Error: ${error.message}`,
                     },
                 ],
                 isError: true,
