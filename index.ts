@@ -82,7 +82,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         let response: any;
         try {
             response = await axios.get(
-                `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&apikey=${apiKey}`
+                `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${apiKey}`
             );
         } catch (e: any) {
             logger.error(e);
