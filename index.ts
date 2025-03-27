@@ -49,6 +49,20 @@ const server = new Server({
                     },
                     required: ["ticker", "infoType", "date"]
                 }
+            },
+            get_ticker_dividend: {
+                name: "get_ticker_dividend",
+                description: "Get dividend data for a specific ticker",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        ticker: {
+                            type: "string",
+                            description: "The ticker symbol to get the dividend data for (e.g. AAPL)"
+                        }
+                    },
+                    required: ["ticker"]
+                }
             }
         },
     }
@@ -67,94 +81,166 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                 })
             ),
         },
+        {
+            name: "get_ticker_dividend",
+            description: "Get dividend data for a specific ticker",
+            inputSchema: zodToJsonSchema(
+                z.object({
+                    ticker: z.string().describe("The ticker symbol to get the dividend data for (e.g. AAPL)"),
+                })
+            ),
+        },
     ],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    const { ticker, infoType, date } = req.params.arguments as { ticker: string; infoType: "open" | "close" | "high" | "low" | "volume"; date: string };
     const apiKey = process.env.ALPHAVANTAGE_API_KEY;
 
     if (!apiKey) {
         throw new Error("ALPHAVANTAGE_API_KEY is not set");
     }
 
-    try {
-        let response: any;
+    if (req.params.name === "get_ticker_ohlcv") {
+        const { ticker, infoType, date } = req.params.arguments as { ticker: string; infoType: "open" | "close" | "high" | "low" | "volume"; date: string };
+
         try {
-            response = await axios.get(
-                `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${apiKey}`
-            );
-        } catch (e: any) {
-            logger.error(e);
-            throw new Error(e);
-        }
+            let response: any;
+            try {
+                response = await axios.get(
+                    `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${apiKey}`
+                );
+            } catch (e: any) {
+                logger.error(e);
+                throw new Error(e);
+            }
 
-        let actualDate = date;
-        if (actualDate === "") {
-            actualDate = Object.keys(response.data["Time Series (Daily)"])[0];
-        }
+            let actualDate = date;
+            if (actualDate === "") {
+                actualDate = Object.keys(response.data["Time Series (Daily)"])[0];
+            }
 
-        const ohlcv = response.data["Time Series (Daily)"][actualDate];
+            const ohlcv = response.data["Time Series (Daily)"][actualDate];
 
-        if (!ohlcv) {
+            if (!ohlcv) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `No data found for ${ticker} on ${actualDate}.`,
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+
+            const openPrice = ohlcv["1. open"];
+            const highPrice = ohlcv["2. high"];
+            const lowPrice = ohlcv["3. low"];
+            const closePrice = ohlcv["4. close"];
+            const volume = ohlcv["5. volume"];
+
+            let price;
+            switch (infoType) {
+                case "open":
+                    price = openPrice;
+                    break;
+                case "high":
+                    price = highPrice;
+                    break;
+                case "low":
+                    price = lowPrice;
+                    break;
+                case "close":
+                    price = closePrice;
+                    break;
+                case "volume":
+                    price = volume;
+                    break;
+                default:
+                    throw new Error(`Invalid infoType: ${infoType}`);
+            }
+
             return {
                 content: [
                     {
                         type: "text",
-                        text: `No data found for ${ticker} on ${actualDate}.`,
+                        text: `The ${infoType} for ${ticker} on ${actualDate} is ${price}`,
+                    },
+                ],
+            };
+        } catch (error: any) {
+            logger.error(error);
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get the ${infoType} price for ${ticker}. Error: ${error.message}`,
                     },
                 ],
                 isError: true,
             };
         }
+    } else if (req.params.name === "get_ticker_dividend") {
+        const { ticker } = req.params.arguments as { ticker: string };
 
-        const openPrice = ohlcv["1. open"];
-        const highPrice = ohlcv["2. high"];
-        const lowPrice = ohlcv["3. low"];
-        const closePrice = ohlcv["4. close"];
-        const volume = ohlcv["5. volume"];
+        try {
+            let response: any;
+            try {
+                response = await axios.get(
+                    `https://www.alphavantage.co/query?function=DIVIDENDS&symbol=${ticker}&apikey=${apiKey}`
+                );
+            } catch (e: any) {
+                logger.error(e);
+                throw new Error(e);
+            }
 
-        let price;
-        switch (infoType) {
-            case "open":
-                price = openPrice;
-                break;
-            case "high":
-                price = highPrice;
-                break;
-            case "low":
-                price = lowPrice;
-                break;
-            case "close":
-                price = closePrice;
-                break;
-            case "volume":
-                price = volume;
-                break;
-            default:
-                throw new Error(`Invalid infoType: ${infoType}`);
+            const dividendHistory = response.data["data"];
+            if (!dividendHistory) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `No dividend data found for ${ticker}.`,
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+
+            const dividends = dividendHistory.map(item => {
+                return `Ex-Dividend Date: ${item.ex_dividend_date}, Amount: ${item.amount}`;
+            }).join("\n");
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Dividend history for ${ticker}:\n${dividends}`,
+                    },
+                ],
+            };
+        } catch (error: any) {
+            logger.error(error);
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get the dividend data for ${ticker}. Error: ${error.message}`,
+                    },
+                ],
+                isError: true,
+            };
         }
-
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: `The ${infoType} for ${ticker} on ${actualDate} is ${price}`,
-                },
-            ],
-        };
-    } catch (error: any) {
-        logger.error(error);
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: `Failed to get the ${infoType} price for ${ticker}. Error: ${error.message}`,
-                },
-            ],
-            isError: true,
-        };
     }
+    return {
+        content: [
+            {
+                type: "text",
+                text: `Tool ${req.params.name} not found.`,
+            },
+        ],
+        isError: true,
+    };
 });
 
 async function main() {
