@@ -69,3 +69,24 @@ mcp call alpha_vantage get_etf_holdings '{"ticker": "SPY"}'
 ## Configuration
 
 The server requires an Alpha Vantage API key to be set in the environment variable `ALPHAVANTAGE_API_KEY`.
+
+To configure the MCP server, add the following to your MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "github.com/septemhill/alpha_vantage_mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "alpha_vantage_finance"
+      ],
+      "env": {
+        "ALPHAVANTAGE_API_KEY": "YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Replace `YOUR_API_KEY` with your Alpha Vantage API key.
