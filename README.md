@@ -51,7 +51,6 @@ mcp call alpha_vantage get_ticker_dividend '{"ticker": "AAPL"}'
 Get the holdings data for a specific ETF.
 
 **Input:**
-
 ```json
 {
   "ticker": "SPY"
@@ -64,6 +63,27 @@ To get the holdings data for SPY:
 
 ```bash
 mcp call alpha_vantage get_etf_holdings '{"ticker": "SPY"}'
+```
+
+### get_exchange_rate
+
+Get the exchange rate between two currencies (fiat or crypto).
+
+**Input:**
+
+```json
+{
+  "fromCurrency": "USD",
+  "toCurrency": "EUR"
+}
+```
+
+**Example Usage:**
+
+To get the exchange rate from USD to EUR:
+
+```bash
+mcp call alpha_vantage get_exchange_rate '{"fromCurrency": "USD", "toCurrency": "EUR"}'
 ```
 
 ## Configuration
