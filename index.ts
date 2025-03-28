@@ -64,21 +64,39 @@ const server = new Server({
                     required: ["ticker"]
                 }
             },
-        },
-        get_etf_holdings: {
-            name: "get_etf_holdings",
-            description: "Get the holdings data for a specific ETF",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    ticker: {
-                        type: "string",
-                        description: "The ticker symbol of the ETF (e.g. SPY)"
-                    }
-                },
-                required: ["ticker"]
+            get_etf_holdings: {
+                name: "get_etf_holdings",
+                description: "Get the holdings data for a specific ETF",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        ticker: {
+                            type: "string",
+                            description: "The ticker symbol of the ETF (e.g. SPY)"
+                        }
+                    },
+                    required: ["ticker"]
+                }
+            },
+            get_exchange_rate: {
+                name: "get_exchange_rate",
+                description: "Get the exchange rate between two currencies (fiat or crypto)",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        fromCurrency: {
+                            type: "string",
+                            description: "The currency to convert from (e.g. USD, BTC)"
+                        },
+                        toCurrency: {
+                            type: "string",
+                            description: "The currency to convert to (e.g. EUR, ETH)"
+                        }
+                    },
+                    required: ["fromCurrency", "toCurrency"]
+                }
             }
-        }
+        },
     }
 });
 
@@ -110,6 +128,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             inputSchema: zodToJsonSchema(
                 z.object({
                     ticker: z.string().describe("The ticker symbol of the ETF (e.g. SPY)"),
+                })
+            ),
+        },
+        {
+            name: "get_exchange_rate",
+            description: "Get the exchange rate between two currencies (fiat or crypto)",
+            inputSchema: zodToJsonSchema(
+                z.object({
+                    fromCurrency: z.string().describe("The currency to convert from (e.g. USD, BTC)"),
+                    toCurrency: z.string().describe("The currency to convert to (e.g. EUR, ETH)"),
                 })
             ),
         },
@@ -301,6 +329,50 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
                     {
                         type: "text",
                         text: `Failed to get the holdings data for ${ticker}. Error: ${error.message}`,
+                    },
+                ],
+                isError: true,
+            };
+        }
+    } else if (req.params.name === "get_exchange_rate") {
+        const { fromCurrency, toCurrency } = req.params.arguments as { fromCurrency: string; toCurrency: string };
+
+        try {
+            const response = await axios.get(
+                `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${fromCurrency}&to_currency=${toCurrency}&apikey=${apiKey}`
+            );
+
+            const priceData = response.data["Realtime Currency Exchange Rate"];
+
+            if (!priceData) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Could not retrieve exchange rate for ${fromCurrency} to ${toCurrency}.`,
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+
+            const exchangeRate = priceData["5. Exchange Rate"];
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `The exchange rate from ${fromCurrency} to ${toCurrency} is ${exchangeRate}`,
+                    },
+                ],
+            };
+        } catch (error: any) {
+            logger.error(error);
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get the exchange rate for ${fromCurrency} to ${toCurrency}. Error: ${error.message}`,
                     },
                 ],
                 isError: true,
