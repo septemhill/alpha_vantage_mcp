@@ -1,6 +1,6 @@
 {
   "name": "alpha_vantage_finance",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "main": "index.js",
   "files": [
     "dist"
@@ -8,6 +8,7 @@
   "bin": {
     "alpha_vantage_finance": "dist/index.js"
   },
+  "type": "module",
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
